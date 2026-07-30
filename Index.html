@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>건강노트</title>
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --bg-color: #f8f9fa;
+      --border-color: #e9ecef;
+      --badge-r: #3182ce;
+      --badge-e: #38a169;
+      --badge-c: #d69e2e;
+      --badge-m: #805ad5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: #333; padding: 20px; max-width: 1000px; margin: 0 auto; }
+
+    /* Header & Navigation */
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-wrap: wrap; gap: 10px; }
+    .nav-controls { display: flex; align-items: center; gap: 8px; }
+    .view-controls { display: flex; align-items: center; gap: 8px; }
+    
+    button { cursor: pointer; border: none; background: #edf2f7; padding: 8px 14px; border-radius: 8px; font-weight: 600; transition: all 0.2s; }
+    button:hover { background: #e2e8f0; }
+    button.active { background: var(--primary-color); color: white; }
+    
+    .btn-today { background: #e2e8f0; color: #2d3748; }
+    .btn-goal { background: #fefcbf; color: #744210; border: 1px solid #f6e05e; }
+    .btn-goal:hover { background: #faf089; }
+
+    /* Sync Indicator Badge */
+    .sync-status { font-size: 0.75rem; padding: 4px 8px; border-radius: 12px; background: #edf2f7; color: #718096; display: inline-flex; align-items: center; gap: 4px; }
+    .sync-status.syncing { background: #feebc8; color: #c05621; }
+    .sync-status.online { background: #c6f6d5; color: #22543d; }
+
+    /* Calendar Grid */
+    .calendar-container { background: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: bold; color: #718096; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+    .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: var(--border-color); margin-top: 10px; border-radius: 8px; overflow: hidden; }
+    
+    .day-cell { background: #fff; min-height: 110px; padding: 6px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; border: 2px solid transparent; }
+    .day-cell:hover { background: #f7fafc; }
+    .day-cell.other-month .day-number { color: #cbd5e0; }
+
+    /*오늘 날짜 강조 스스타일*/
+    .day-cell.is-today { background-color: #f0f7ff; }
+    .day-cell.is-today .day-number {
+      background: var(--primary-color);
+      color: white;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 목표 대비 칼로리 테두리 */
+    .day-cell.cal-achieved { border: 2px solid #38a169 !important; }
+    .day-cell.cal-exceeded { border: 2px solid #e53e3e !important; }
+
+    /* Cell Header */
+    .day-header { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
+    .day-number { font-size: 0.85rem; font-weight: 600; color: #4a5568; }
+    
+    /* 몸무게 글씨 색상 */
+    .day-weight { font-size: 0.72rem; font-weight: 700; color: #718096; }
+    .day-weight.weight-over { color: #e53e3e; }
+    .day-weight.weight-under { color: #3182ce; }
+
+    /* Calendar Cell Content */
+    .cell-data { margin-top: 4px; }
+    .cell-calories { font-size: 0.85rem; font-weight: bold; color: #2d3748; margin-bottom: 4px; }
+    .cell-badges { display: flex; gap: 3px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; color: white; font-size: 0.7rem; font-weight: bold; }
+    .badge-r { background: var(--badge-r); }
+    .badge-e { background: var(--badge-e); }
+    .badge-c { background: var(--badge-c); color: #fff; }
+    .badge-m { background: var(--badge-m); }
+
+    /* Modals */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; z-index: 1000; }
+    .modal-overlay.active { display: flex; }
+    .modal-content { background: #fff; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; border-radius: 16px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px; }
+    
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 700; color: #4a5568; margin-bottom: 6px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    
+    input[type="number"], input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 0.9rem; }
+    textarea { resize: vertical; height: 60px; }
+    
+    .checkbox-inline { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .checkbox-inline input[type="checkbox"] { width: 18px; height: 18px; }
+
+    .total-preview { background: #edf2f7; padding: 12px; border-radius: 8px; text-align: right; font-weight: bold; font-size: 1rem; color: #2b6cb0; margin-top: 10px; }
+    .btn-submit { width: 100%; padding: 12px; background: var(--primary-color); color: white; font-size: 1rem; border-radius: 8px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="nav-controls">
+      <button id="prevBtn">&lt;</button>
+      <button id="todayBtn" class="btn-today">오늘</button>
+      <button id="nextBtn">&gt;</button>
+      <h2 id="calendarTitle">2026년 8월</h2>
+    </div>
+    <div class="view-controls">
+      <span id="syncIndicator" class="sync-status">🟢 연동 완료</span>
+      <button id="monthViewBtn" class="active">월간</button>
+      <button id="weekViewBtn">주간</button>
+      <button id="goalModalBtn" class="btn-goal">🎯 목표 설정</button>
+    </div>
+  </header>
+
+  <div class="calendar-container">
+    <div class="weekdays">
+      <div style="color: #e53e3e;">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div style="color: #3182ce;">토</div>
+    </div>
+    <div class="days-grid" id="daysGrid"></div>
+  </div>
+
+  <!-- 목표 설정 모달 -->
+  <div class="modal-overlay" id="goalModal">
+    <div class="modal-content" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3>🎯 나의 다이어트 목표</h3>
+        <button id="closeGoalModalBtn" style="background:none; font-size:1.2rem;">✕</button>
+      </div>
+      <form id="goalForm">
+        <div class="form-group">
+          <label>하루 총 칼로리 목표 (kcal)</label>
+          <input type="number" id="goalCalInput" placeholder="예: 1600">
+        </div>
+        <div class="form-group">
+          <label>목표 몸무게 (kg)</label>
+          <input type="number" id="goalWeightInput" step="0.1" placeholder="예: 55.0">
+        </div>
+        <button type="submit" class="btn-submit">목표 저장하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 일일 기록 입력 / 수정 모달 -->
+  <div class="modal-overlay" id="entryModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalDateTitle">2026-08-01 기록</h3>
+        <button id="closeModalBtn" style="background:none; font-size:1.2rem;">✕</button>
+      </div>
+
+      <form id="healthForm">
+        <div class="form-group">
+          <label>오늘의 몸무게 (kg)</label>
+          <input type="number" id="weight" step="0.1" placeholder="예: 55.5">
+        </div>
+
+        <div class="form-group">
+          <label>먹은 음식들 및 칼로리 (kcal)</label>
+          <div class="form-row" style="margin-bottom: 6px;">
+            <input type="text" id="bfFood" placeholder="아침">
+            <input type="number" class="cal-input" id="bfCal" placeholder="kcal">
+          </div>
+          <div class="form-row" style="margin-bottom: 6px;">
+            <input type="text" id="lunchFood" placeholder="점심">
+            <input type="number" class="cal-input" id="lunchCal" placeholder="kcal">
+          </div>
+          <div class="form-row" style="margin-bottom: 6px;">
+            <input type="text" id="dinnerFood" placeholder="저녁">
+            <input type="number" class="cal-input" id="dinnerCal" placeholder="kcal">
+          </div>
+          <div class="form-row">
+            <input type="text" id="snackFood" placeholder="간식">
+            <input type="number" class="cal-input" id="snackCal" placeholder="kcal">
+          </div>
+          <div class="total-preview">
+            총 칼로리: <span id="totalCalDisplay">0</span> kcal
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>활동 및 체크리스트</label>
+          <div style="margin-bottom: 12px;">
+            <div class="checkbox-inline">
+              <input type="checkbox" id="chkRunning">
+              <label for="chkRunning">🟦 달리기 (R)</label>
+            </div>
+            <input type="number" id="runDistance" step="0.1" placeholder="달린 거리 (km)">
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div class="checkbox-inline">
+              <input type="checkbox" id="chkExercise">
+              <label for="chkExercise">🟩 운동 (E)</label>
+            </div>
+            <input type="text" id="exDetail" placeholder="운동 내용 입력 (예: 웨이트 40분)">
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div class="checkbox-inline">
+              <input type="checkbox" id="chkSupplement">
+              <label for="chkSupplement">🟨 건강기능식품 (C)</label>
+            </div>
+            <input type="text" id="suppDetail" placeholder="섭취한 건기식 (예: 비타민C, 오메가3)">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>🟪 메모 (M)</label>
+          <textarea id="memo" placeholder="오늘의 몸 상태, 특이사항 등 메모"></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit">저장하기</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // 💥 구글 앱스 스크립트 웹 앱 URL을 아래에 넣어주세요 💥
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbw1An20YowyMgYwiFivOP4oA4CdQAIs2PThblAGBBx6A6O6vjEsybb8YeS1moVNIAuLTw/exec";
+
+    let currentDate = new Date(); // 오늘 날짜 기본
+    let currentView = 'month';
+    let selectedDateKey = '';
+    
+    let healthData = JSON.parse(localStorage.getItem('diet_app_data')) || {};
+    let goalData = JSON.parse(localStorage.getItem('diet_app_goals')) || { cal: null, weight: null };
+
+    // Elements
+    const calendarTitle = document.getElementById('calendarTitle');
+    const daysGrid = document.getElementById('daysGrid');
+    const monthViewBtn = document.getElementById('monthViewBtn');
+    const weekViewBtn = document.getElementById('weekViewBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const todayBtn = document.getElementById('todayBtn');
+    const syncIndicator = document.getElementById('syncIndicator');
+    
+    const entryModal = document.getElementById('entryModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const healthForm = document.getElementById('healthForm');
+    const calInputs = document.querySelectorAll('.cal-input');
+    const totalCalDisplay = document.getElementById('totalCalDisplay');
+
+    const goalModalBtn = document.getElementById('goalModalBtn');
+    const goalModal = document.getElementById('goalModal');
+    const closeGoalModalBtn = document.getElementById('closeGoalModalBtn');
+    const goalForm = document.getElementById('goalForm');
+
+    function init() {
+      renderCalendar();
+      setupEventListeners();
+      fetchFromGoogleSheet(); // 구글 시트에서 최신 데이터 불러오기
+    }
+
+    // 구글 동기화 함수들
+    function setSyncStatus(status, text) {
+      syncIndicator.className = `sync-status ${status}`;
+      syncIndicator.textContent = text;
+    }
+
+    async function fetchFromGoogleSheet() {
+      if (!GAS_URL || GAS_URL.includes("여기에_구글")) return;
+      setSyncStatus('syncing', '🔄 동기화 중...');
+      try {
+        const res = await fetch(GAS_URL);
+        const data = await res.json();
+        if (data.healthData) {
+          healthData = data.healthData;
+          localStorage.setItem('diet_app_data', JSON.stringify(healthData));
+        }
+        if (data.goalData) {
+          goalData = data.goalData;
+          localStorage.setItem('diet_app_goals', JSON.stringify(goalData));
+        }
+        setSyncStatus('online', '🟢 연동 완료');
+        renderCalendar();
+      } catch (err) {
+        console.error(err);
+        setSyncStatus('', '⚠️ 오프라인 모드');
+      }
+    }
+
+    async function saveToGoogleSheet(payload) {
+      if (!GAS_URL || GAS_URL.includes("여기에_구글")) return;
+      setSyncStatus('syncing', '💾 구글 저장 중...');
+      try {
+        await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        setSyncStatus('online', '🟢 연동 완료');
+      } catch (err) {
+        console.error(err);
+        setSyncStatus('', '⚠️ 저장 실패 (로컬만 저장됨)');
+      }
+    }
+
+    calInputs.forEach(input => {
+      input.addEventListener('input', calculateTotalCalories);
+    });
+
+    function calculateTotalCalories() {
+      let total = 0;
+      calInputs.forEach(inp => { total += Number(inp.value) || 0; });
+      totalCalDisplay.textContent = total.toLocaleString();
+      return total;
+    }
+
+    function renderCalendar() {
+      daysGrid.innerHTML = '';
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      calendarTitle.textContent = `${year}년 ${month + 1}월`;
+
+      if (currentView === 'month') {
+        renderMonthView(year, month);
+      } else {
+        renderWeekView(currentDate);
+      }
+    }
+
+    function renderMonthView(year, month) {
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const prevLastDate = new Date(year, month, 0).getDate();
+
+      for (let i = firstDay - 1; i >= 0; i--) {
+        const cell = createCell(prevLastDate - i, true);
+        daysGrid.appendChild(cell);
+      }
+
+      for (let d = 1; d <= lastDate; d++) {
+        const dateStr = formatDateKey(year, month + 1, d);
+        const cell = createCell(d, false, dateStr);
+        daysGrid.appendChild(cell);
+      }
+    }
+
+    function renderWeekView(date) {
+      const startOfWeek = new Date(date);
+      startOfWeek.setDate(date.getDate() - date.getDay());
+
+      for (let i = 0; i < 7; i++) {
+        const cur = new Date(startOfWeek);
+        cur.setDate(startOfWeek.getDate() + i);
+        const dateStr = formatDateKey(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+        const cell = createCell(cur.getDate(), cur.getMonth() !== currentDate.getMonth(), dateStr);
+        daysGrid.appendChild(cell);
+      }
+    }
+
+    function createCell(dayNum, isOtherMonth, dateKey = null) {
+      const cell = document.createElement('div');
+      cell.className = `day-cell ${isOtherMonth ? 'other-month' : ''}`;
+      
+      // 오늘 날짜 체크 및 강조
+      const todayStr = formatDateKey(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
+      if (dateKey === todayStr) {
+        cell.classList.add('is-today');
+      }
+
+      const dayHeader = document.createElement('div');
+      dayHeader.className = 'day-header';
+
+      const numSpan = document.createElement('span');
+      numSpan.className = 'day-number';
+      numSpan.textContent = dayNum;
+      dayHeader.appendChild(numSpan);
+
+      if (dateKey && healthData[dateKey]) {
+        const data = healthData[dateKey];
+
+        // 1. 몸무게 표시 및 색상 판단
+        if (data.weight) {
+          const weightSpan = document.createElement('span');
+          weightSpan.className = 'day-weight';
+          weightSpan.textContent = `${data.weight}kg`;
+
+          if (goalData.weight) {
+            const currentW = parseFloat(data.weight);
+            const goalW = parseFloat(goalData.weight);
+            if (currentW > goalW) {
+              weightSpan.classList.add('weight-over');
+            } else {
+              weightSpan.classList.add('weight-under');
+            }
+          }
+          dayHeader.appendChild(weightSpan);
+        }
+
+        // 2. 총 칼로리 테두리 판단
+        if (data.totalCal > 0 && goalData.cal) {
+          if (Number(data.totalCal) <= Number(goalData.cal)) {
+            cell.classList.add('cal-achieved');
+          } else {
+            cell.classList.add('cal-exceeded');
+          }
+        }
+      }
+
+      cell.appendChild(dayHeader);
+
+      if (dateKey && healthData[dateKey]) {
+        const data = healthData[dateKey];
+        const dataContainer = document.createElement('div');
+        dataContainer.className = 'cell-data';
+
+        if (data.totalCal > 0) {
+          const calDiv = document.createElement('div');
+          calDiv.className = 'cell-calories';
+          calDiv.textContent = `${data.totalCal.toLocaleString()} kcal`;
+          dataContainer.appendChild(calDiv);
+        }
+
+        const badgeContainer = document.createElement('div');
+        badgeContainer.className = 'cell-badges';
+
+        if (data.chkRunning || (data.runDistance && data.runDistance > 0)) {
+          badgeContainer.innerHTML += `<span class="badge badge-r" title="달리기">R</span>`;
+        }
+        if (data.chkExercise || (data.exDetail && data.exDetail.trim())) {
+          badgeContainer.innerHTML += `<span class="badge badge-e" title="기타 운동">E</span>`;
+        }
+        if (data.chkSupplement || (data.suppDetail && data.suppDetail.trim())) {
+          badgeContainer.innerHTML += `<span class="badge badge-c" title="건강기능식품">C</span>`;
+        }
+        if (data.memo && data.memo.trim()) {
+          badgeContainer.innerHTML += `<span class="badge badge-m" title="메모">M</span>`;
+        }
+
+        dataContainer.appendChild(badgeContainer);
+        cell.appendChild(dataContainer);
+      }
+
+      if (dateKey) {
+        cell.addEventListener('click', () => openModal(dateKey));
+      }
+
+      return cell;
+    }
+
+    function formatDateKey(year, month, day) {
+      const m = month < 10 ? `0${month}` : month;
+      const d = day < 10 ? `0${day}` : day;
+      return `${year}-${m}-${d}`;
+    }
+
+    // Modal Events
+    function openModal(dateKey) {
+      selectedDateKey = dateKey;
+      document.getElementById('modalDateTitle').textContent = `${dateKey} 기록`;
+      
+      const saved = healthData[dateKey] || {};
+      
+      document.getElementById('weight').value = saved.weight || '';
+      document.getElementById('bfFood').value = saved.bfFood || '';
+      document.getElementById('bfCal').value = saved.bfCal || '';
+      document.getElementById('lunchFood').value = saved.lunchFood || '';
+      document.getElementById('lunchCal').value = saved.lunchCal || '';
+      document.getElementById('dinnerFood').value = saved.dinnerFood || '';
+      document.getElementById('dinnerCal').value = saved.dinnerCal || '';
+      document.getElementById('snackFood').value = saved.snackFood || '';
+      document.getElementById('snackCal').value = saved.snackCal || '';
+      
+      document.getElementById('chkRunning').checked = saved.chkRunning || false;
+      document.getElementById('runDistance').value = saved.runDistance || '';
+      document.getElementById('chkExercise').checked = saved.chkExercise || false;
+      document.getElementById('exDetail').value = saved.exDetail || '';
+      document.getElementById('chkSupplement').checked = saved.chkSupplement || false;
+      document.getElementById('suppDetail').value = saved.suppDetail || '';
+      document.getElementById('memo').value = saved.memo || '';
+
+      calculateTotalCalories();
+      entryModal.classList.add('active');
+    }
+
+    closeModalBtn.addEventListener('click', () => entryModal.classList.remove('active'));
+
+    healthForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const totalCal = calculateTotalCalories();
+
+      const record = {
+        weight: document.getElementById('weight').value,
+        bfFood: document.getElementById('bfFood').value,
+        bfCal: document.getElementById('bfCal').value,
+        lunchFood: document.getElementById('lunchFood').value,
+        lunchCal: document.getElementById('lunchCal').value,
+        dinnerFood: document.getElementById('dinnerFood').value,
+        dinnerCal: document.getElementById('dinnerCal').value,
+        snackFood: document.getElementById('snackFood').value,
+        snackCal: document.getElementById('snackCal').value,
+        totalCal: totalCal,
+        chkRunning: document.getElementById('chkRunning').checked,
+        runDistance: document.getElementById('runDistance').value,
+        chkExercise: document.getElementById('chkExercise').checked,
+        exDetail: document.getElementById('exDetail').value,
+        chkSupplement: document.getElementById('chkSupplement').checked,
+        suppDetail: document.getElementById('suppDetail').value,
+        memo: document.getElementById('memo').value,
+      };
+
+      healthData[selectedDateKey] = record;
+      localStorage.setItem('diet_app_data', JSON.stringify(healthData));
+      entryModal.classList.remove('active');
+      renderCalendar();
+
+      // 구글 시트에 저장
+      saveToGoogleSheet({ type: 'record', dateKey: selectedDateKey, record: record });
+    });
+
+    // Goal Modal
+    goalModalBtn.addEventListener('click', () => {
+      document.getElementById('goalCalInput').value = goalData.cal || '';
+      document.getElementById('goalWeightInput').value = goalData.weight || '';
+      goalModal.classList.add('active');
+    });
+
+    closeGoalModalBtn.addEventListener('click', () => goalModal.classList.remove('active'));
+
+    goalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      goalData.cal = document.getElementById('goalCalInput').value;
+      goalData.weight = document.getElementById('goalWeightInput').value;
+      
+      localStorage.setItem('diet_app_goals', JSON.stringify(goalData));
+      goalModal.classList.remove('active');
+      renderCalendar();
+
+      // 구글 시트에 목표 저장
+      saveToGoogleSheet({ type: 'goal', goalData: goalData });
+    });
+
+    // Navigation Events
+    function setupEventListeners() {
+      // 오늘 버튼 누르면 오늘 날짜로 달력 이동
+      todayBtn.addEventListener('click', () => {
+        currentDate = new Date();
+        renderCalendar();
+      });
+
+      monthViewBtn.addEventListener('click', () => {
+        currentView = 'month';
+        monthViewBtn.classList.add('active');
+        weekViewBtn.classList.remove('active');
+        renderCalendar();
+      });
+
+      weekViewBtn.addEventListener('click', () => {
+        currentView = 'week';
+        weekViewBtn.classList.add('active');
+        monthViewBtn.classList.remove('active');
+        renderCalendar();
+      });
+
+      prevBtn.addEventListener('click', () => {
+        if (currentView === 'month') currentDate.setMonth(currentDate.getMonth() - 1);
+        else currentDate.setDate(currentDate.getDate() - 7);
+        renderCalendar();
+      });
+
+      nextBtn.addEventListener('click', () => {
+        if (currentView === 'month') currentDate.setMonth(currentDate.getMonth() + 1);
+        else currentDate.setDate(currentDate.getDate() + 7);
+        renderCalendar();
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
